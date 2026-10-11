@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct ImageDownloader {
+struct ImageDownloader: ImageDownloading {
     private let session: URLSession
     
     init(session: URLSession = .shared) {

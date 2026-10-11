@@ -16,11 +16,11 @@ actor ImagePipeline {
         ]
     }
     
-    private let downloader: ImageDownloader
+    private let downloader: any ImageDownloading
     
     private var inFlightRequests: [URL: InflightRequest] = [:]
     
-    init(downloader: ImageDownloader = ImageDownloader()) {
+    init(downloader: any ImageDownloading = ImageDownloader()) {
         self.downloader = downloader
     }
     
