@@ -10,8 +10,6 @@ import XCTest
 @testable import Pickel
 
 final class StubURLProtocol: URLProtocol {
-    private var requestStarted: XCTestExpectation!
-    
     fileprivate static let slowRequestObserver = SlowRequestObserver()
     
     override class func canInit(with request: URLRequest) -> Bool {
