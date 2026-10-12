@@ -7,6 +7,23 @@
 
 import Foundation
 
+private final class WaiterCancellationState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
+    }
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+}
+
 actor ImagePipeline {
     private struct InflightRequest {
         let id: UUID
@@ -19,8 +36,7 @@ actor ImagePipeline {
     private let downloader: any ImageDownloading
     
     private var inFlightRequests: [URL: InflightRequest] = [:]
-    private var activeWaiterIDs: Set<UUID> = []
-    private var cancelledWaiterIDs: Set<UUID> = []
+
     
     init(downloader: any ImageDownloading = ImageDownloader()) {
         self.downloader = downloader
@@ -36,17 +52,20 @@ actor ImagePipeline {
     
     func data(for url: URL) async throws -> Data {
         let waiterID = UUID()
-        activeWaiterIDs.insert(waiterID)
-        
+        let cancellationState = WaiterCancellationState()
+
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 register(
                     url: url,
                     waiterID: waiterID,
+                    cancellationState: cancellationState,
                     continuation: continuation
                 )
             }
         } onCancel: {
+            cancellationState.cancel()
+
             Task {
                 await self.cancelWaiter(
                     waiterID,
@@ -59,10 +78,10 @@ actor ImagePipeline {
     private func register(
         url: URL,
         waiterID: UUID,
+        cancellationState: WaiterCancellationState,
         continuation: CheckedContinuation<Data, any Error>
     ) {
-        if cancelledWaiterIDs.remove(waiterID) != nil {
-            activeWaiterIDs.remove(waiterID)
+        guard !cancellationState.isCancelled else {
             continuation.resume(throwing: CancellationError())
             return
         }
@@ -70,6 +89,11 @@ actor ImagePipeline {
         if var request = inFlightRequests[url] {
             request.waiters[waiterID] = continuation
             inFlightRequests[url] = request
+
+            if cancellationState.isCancelled {
+                cancelWaiter(waiterID, for: url)
+            }
+
             return
         }
         
@@ -94,28 +118,29 @@ actor ImagePipeline {
         }
         
         inFlightRequests[url] = InflightRequest(
-            id: requestID, task: task, waiters: [waiterID: continuation]
+            id: requestID,
+            task: task,
+            waiters: [waiterID: continuation]
         )
+
+        if cancellationState.isCancelled {
+            cancelWaiter(waiterID, for: url)
+        }
     }
+    
     
     private func cancelWaiter(
         _ waiterID: UUID,
         for url: URL
     ) {
-        guard activeWaiterIDs.contains(waiterID) else {
-            return
-        }
-
         guard var request = inFlightRequests[url],
               let continuation = request.waiters.removeValue(
                   forKey: waiterID
               )
         else {
-            cancelledWaiterIDs.insert(waiterID)
             return
         }
 
-        activeWaiterIDs.remove(waiterID)
         continuation.resume(throwing: CancellationError())
 
         if request.waiters.isEmpty {
@@ -138,10 +163,6 @@ actor ImagePipeline {
         }
 
         inFlightRequests[url] = nil
-        
-        for waiterID in request.waiters.keys {
-            activeWaiterIDs.remove(waiterID)
-        }
 
         for continuation in request.waiters.values {
             switch result {
