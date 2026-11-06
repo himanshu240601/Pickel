@@ -56,3 +56,17 @@ jobs:
             done
             exit 1
           }
+
+  sample-app:
+    name: Sample app builds
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build PickelDemo
+        run: |
+          xcodebuild build \
+            -project Examples/PickelDemo/PickelDemo.xcodeproj \
+            -scheme PickelDemo \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet

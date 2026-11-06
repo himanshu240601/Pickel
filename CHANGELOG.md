@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - SwiftUI: `PickelImage(url:content:placeholder:failure:)` shows a separate view when loading fails
+- Sample app in `Examples/PickelDemo` showing SwiftUI, UIKit, processors, prefetching and caching
 
 ## 0.1.0
 
