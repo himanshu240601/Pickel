@@ -119,6 +119,19 @@ final class DiskCacheTests: XCTestCase {
         XCTAssertLessThanOrEqual(size, entrySize * 3)
     }
 
+    func testTotalSizeCountsExistingFiles() async {
+        let sut = makeSUT()
+        await sut.store(Data(repeating: 1, count: 10_000), forKey: "a")
+
+        let size = await sut.totalSize()
+        XCTAssertGreaterThanOrEqual(size, 10_000)
+
+        // A new instance pointing at the same directory sees the same files.
+        let reopened = makeSUT()
+        let reopenedSize = await reopened.totalSize()
+        XCTAssertGreaterThanOrEqual(reopenedSize, 10_000)
+    }
+
     func testFileNameIsStableHash() {
         XCTAssertEqual(
             DiskCache.fileName(forKey: "abc"),
