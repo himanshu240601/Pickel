@@ -1,4 +1,4 @@
-// swift-tools-version: 6.3
+// swift-tools-version: 6.0
 
 import PackageDescription
 
@@ -6,7 +6,9 @@ let package = Package(
     name: "Pickel",
     platforms: [
         .iOS(.v17),
-        .macOS(.v12)
+        .macOS(.v14),
+        .tvOS(.v17),
+        .visionOS(.v1)
     ],
     products: [
         .library(
