@@ -2,45 +2,21 @@
 
 **Images, without the pickle.**
 
-Pickel is a lightweight image loading library for iOS, built entirely on Swift concurrency. It loads remote images into SwiftUI and UIKit with memory and disk caching, request coalescing, downsampling and image processing. It has no dependencies.
+Pickel loads images from the internet and shows them in your iOS app. Images are cached, so each one downloads only once.
 
-## Features
-
-- **SwiftUI**: `PickelImage`, an `AsyncImage`-style view backed by a real cache.
-- **UIKit**: `imageView.pickel.setImage(with:)`, safe to use in reused cells.
-- **Two-level cache**: an in-memory cache of decoded images (limited by cost, cleared on memory warnings) and an on-disk cache of original data (LRU trimming plus expiration).
-- **Request coalescing**: concurrent requests for the same URL share one download. The download is cancelled only after every caller has cancelled.
-- **Downsampling**: decodes straight to the display size with ImageIO, so a full-size bitmap never sits in memory.
-- **Background decoding**: images are decoded eagerly off the main thread and EXIF orientation is applied.
-- **Processors**: resize, rounded corners, circle, or your own.
-- **Prefetching**: warms the caches before images scroll into view.
-- **Swift 6**: compiles in strict concurrency mode, and the public types are `Sendable`.
-
-## Requirements
-
-- iOS 17+, macOS 14+, tvOS 17+, visionOS 1+
-- Swift 6.0+ (Xcode 16+)
+- Works with **SwiftUI** and **UIKit**
+- Caches images in memory and on disk
+- Lightweight, with no dependencies
 
 ## Installation
 
-### Swift Package Manager
-
-In Xcode choose **File → Add Package Dependencies…** and enter:
+In Xcode, go to **File → Add Package Dependencies…** and paste:
 
 ```
 https://github.com/himanshu240601/Pickel.git
 ```
 
-Or add it to your `Package.swift`:
-
-```swift
-dependencies: [
-    .package(url: "https://github.com/himanshu240601/Pickel.git", from: "0.1.0")
-],
-targets: [
-    .target(name: "MyApp", dependencies: ["Pickel"])
-]
-```
+Requires iOS 17+ and Xcode 16+. macOS 14+, tvOS 17+ and visionOS 1+ are also supported.
 
 ## Usage
 
@@ -48,48 +24,13 @@ targets: [
 
 ```swift
 import Pickel
-import SwiftUI
 
-struct Avatar: View {
-    let url: URL?
-
-    var body: some View {
-        PickelImage(
-            url: url,
-            targetSize: CGSize(width: 64, height: 64), // downsample to display size
-            processors: [.circle]
-        ) { image in
-            image.resizable().scaledToFill()
-        } placeholder: {
-            ProgressView()
-        }
-        .frame(width: 64, height: 64)
-    }
+PickelImage(url: url) { image in
+    image.resizable().scaledToFill()
+} placeholder: {
+    ProgressView()
 }
-```
-
-To handle every phase yourself:
-
-```swift
-PickelImage(url: url, transaction: Transaction(animation: .easeIn)) { phase in
-    switch phase {
-    case .empty:
-        Color.gray.opacity(0.2)
-    case .success(let image):
-        image.resizable().scaledToFit()
-    case .failure:
-        Image(systemName: "photo")
-    }
-}
-```
-
-Images already in memory appear immediately with no placeholder flash. Loading is cancelled when the view disappears or the URL changes.
-
-To use a custom pipeline for a whole view hierarchy:
-
-```swift
-ContentView()
-    .imagePipeline(myPipeline)
+.frame(width: 100, height: 100)
 ```
 
 ### UIKit
@@ -97,130 +38,52 @@ ContentView()
 ```swift
 import Pickel
 
-imageView.pickel.setImage(
-    with: url,
-    placeholder: UIImage(named: "placeholder"),
-    failureImage: UIImage(named: "broken"),
-    processors: [.roundedCorners(radius: 8)],
-    transition: .fade(0.25)
-)
-
-// In prepareForReuse():
-imageView.pickel.cancel()
+imageView.pickel.setImage(with: url)
 ```
 
-When the image view has been laid out, the image is downsampled to its bounds and `contentMode`. Starting a new load on the same image view cancels the previous one automatically.
+This works in table and collection view cells too: when a cell is reused, the old load is cancelled automatically.
 
-### Loading images directly
+### async/await
 
 ```swift
 let image = try await ImagePipeline.shared.image(for: url)
-
-let request = ImageRequest(
-    url: url,
-    targetSize: CGSize(width: 300, height: 200),
-    contentMode: .aspectFit,
-    scale: 3,
-    processors: [.resize(size: CGSize(width: 300, height: 200), crop: true)]
-)
-let thumbnail = try await ImagePipeline.shared.image(for: request)
 ```
 
-To set custom headers (for example for authentication), pass a `URLRequest`:
+## Tips
+
+**Large images:** to save memory, pass the size the image will be shown at. Pickel shrinks the image to that size:
 
 ```swift
-var urlRequest = URLRequest(url: url)
-urlRequest.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-let image = try await ImagePipeline.shared.image(for: ImageRequest(urlRequest: urlRequest))
+PickelImage(url: url, targetSize: CGSize(width: 100, height: 100)) { image in
+    image.resizable()
+} placeholder: {
+    Color.gray
+}
 ```
 
-### Cache options
+(UIKit does this for you automatically, using the image view's size.)
+
+**Round images:**
 
 ```swift
-ImageRequest(url: url, options: .reloadIgnoringCachedData) // skip cache reads, store fresh result
-ImageRequest(url: url, options: .returnCacheDataDontLoad)  // cache only, never hit the network
-ImageRequest(url: url, options: .disableCaching)           // no cache reads or writes
+PickelImage(url: url, processors: [.circle]) { ... }
+imageView.pickel.setImage(with: url, processors: [.roundedCorners(radius: 12)])
 ```
 
-Managing caches:
+**Clearing the cache:**
 
 ```swift
-let cached = ImagePipeline.shared.cachedImage(for: url)       // synchronous memory lookup
-await ImagePipeline.shared.removeCachedImage(for: ImageRequest(url: url))
 await ImagePipeline.shared.removeAllCachedImages()
 ```
 
-### Configuration
+## Learn more
 
-```swift
-let pipeline = ImagePipeline(configuration: .init(
-    downloader: ImageDownloader(session: mySession),
-    memoryCache: MemoryCache(costLimit: 100 * 1024 * 1024),
-    diskCache: DiskCache(name: "avatars", sizeLimit: 50 * 1024 * 1024, expiration: 3 * 24 * 60 * 60)
-))
-```
+Every public type includes documentation comments. In Xcode, Option-click a type to read them. Good places to start:
 
-Pass `nil` for `memoryCache` or `diskCache` to turn that cache off. To use a different networking stack, conform to `ImageDownloading`:
-
-```swift
-struct MyDownloader: ImageDownloading {
-    func download(_ request: URLRequest) async throws -> Data { ... }
-}
-```
-
-### Processors
-
-Built-in processors are `.resize(size:contentMode:crop:upscale:)`, `.roundedCorners(radius:)` and `.circle`. Sizes and radii are given in points. To write your own:
-
-```swift
-struct Grayscale: ImageProcessing {
-    var identifier: String { "com.myapp.grayscale" }
-
-    func process(_ image: CGImage, scale: CGFloat) -> CGImage? {
-        // return a transformed CGImage
-    }
-}
-```
-
-The `identifier` is part of the memory cache key, so it must be unique for each processor and each set of parameters.
-
-### Prefetching
-
-```swift
-let prefetcher = ImagePrefetcher(maxConcurrentRequests: 2)
-
-// UICollectionViewDataSourcePrefetching
-func collectionView(_ collectionView: UICollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
-    prefetcher.startPrefetching(with: indexPaths.map { items[$0.item].imageURL })
-}
-
-func collectionView(_ collectionView: UICollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
-    prefetcher.stopPrefetching(with: indexPaths.map { items[$0.item].imageURL })
-}
-```
-
-Prefetch the same request your view will display, with the same `targetSize` and processors, so the memory cache entry matches.
-
-## How it works
-
-```
-request ─► memory cache ─hit─► image
-              │ miss
-              ▼
-           disk cache ──hit──┐
-              │ miss         │
-              ▼              ▼
-        coalesced download ─► decode + downsample ─► processors ─► memory cache ─► image
-              └────────────── store original data in disk cache ◄─┘
-```
-
-The disk cache stores **original** data under the URL key. Different sizes or processor variants of one image therefore share a single download. The memory cache stores the **final** image under a key built from the URL, size, scale and processors.
-
-## Limitations
-
-- Animated GIF, APNG and WebP images decode to their first frame only.
-- The disk cache ignores HTTP cache headers and uses its own expiration.
+- `ImageRequest`: custom headers, cache options, sizes
+- `ImagePipeline.Configuration`: cache size limits, custom networking
+- `ImagePrefetcher`: start loading images before they scroll into view
 
 ## License
 
-Pickel is available under the MIT License. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
