@@ -4,6 +4,7 @@ Download, cache and display images from the web in SwiftUI and UIKit.
 
 @Metadata {
     @DisplayName("Pickel")
+    @PageImage(purpose: icon, source: "pickel-icon", alt: "The Pickel icon")
 }
 
 ## Overview
