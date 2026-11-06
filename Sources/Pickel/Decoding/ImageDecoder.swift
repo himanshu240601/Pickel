@@ -21,7 +21,16 @@ public enum ImageContentMode: String, Hashable, Sendable {
 /// Decoding always happens eagerly (`kCGImageSourceShouldCacheImmediately`),
 /// so the returned image is ready to draw without blocking the main thread.
 /// EXIF orientation is applied to the pixels.
+///
+/// To protect against "decompression bombs" (tiny files that expand to
+/// enormous bitmaps), images are never decoded larger than
+/// ``maximumPixelCount`` pixels; bigger images are downsampled instead.
 struct ImageDecoder: Sendable {
+    /// Default cap: 24 megapixels (about 96 MB of bitmap memory).
+    static let defaultMaximumPixelCount = 24_000_000
+
+    var maximumPixelCount = ImageDecoder.defaultMaximumPixelCount
+
     /// Decodes `data` into a `CGImage`.
     ///
     /// - Parameters:
@@ -52,11 +61,14 @@ struct ImageDecoder: Sendable {
             throw ImageDecodingError.invalidData
         }
 
-        let maxPixelSize = Self.maxPixelSize(
-            source: pixelSize,
-            target: targetSize,
-            scale: scale,
-            contentMode: contentMode
+        let maxPixelSize = min(
+            Self.maxPixelSize(
+                source: pixelSize,
+                target: targetSize,
+                scale: scale,
+                contentMode: contentMode
+            ),
+            Self.longestSide(source: pixelSize, maximumPixelCount: maximumPixelCount)
         )
 
         let options = [
@@ -99,6 +111,20 @@ struct ImageDecoder: Sendable {
         }
 
         return CGSize(width: width, height: height)
+    }
+
+    /// Longest side allowed so the image has at most `maximumPixelCount`
+    /// pixels.
+    static func longestSide(source: CGSize, maximumPixelCount: Int) -> Int {
+        let pixels = source.width * source.height
+        let longest = max(source.width, source.height)
+
+        guard maximumPixelCount > 0, pixels > CGFloat(maximumPixelCount) else {
+            return Int(longest.rounded())
+        }
+
+        let factor = (CGFloat(maximumPixelCount) / pixels).squareRoot()
+        return max(1, Int((longest * factor).rounded(.down)))
     }
 
     /// The longest side, in pixels, the decoded image should have.

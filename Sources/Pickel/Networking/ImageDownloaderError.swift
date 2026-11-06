@@ -13,4 +13,8 @@ public enum ImageDownloaderError: Error, Equatable, Sendable {
     case invalidResponse
     /// The server responded with a status code outside `200..<300`.
     case unacceptableStatusCode(Int)
+    /// The URL is missing or its scheme is not `http`, `https` or `file`.
+    case unsupportedURL
+    /// The response is larger than the downloader's `maximumDataSize`.
+    case responseTooLarge
 }

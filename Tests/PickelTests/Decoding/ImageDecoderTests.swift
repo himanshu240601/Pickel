@@ -80,4 +80,13 @@ final class ImageDecoderTests: XCTestCase {
             XCTAssertEqual(error as? ImageDecodingError, .invalidData)
         }
     }
+
+    func testCapsDecodedPixelCount() throws {
+        let decoder = ImageDecoder(maximumPixelCount: 100 * 100)
+
+        let image = try decoder.decode(TestImages.png(width: 400, height: 200))
+
+        XCTAssertLessThanOrEqual(image.width * image.height, 100 * 100)
+        XCTAssertEqual(image.width, 141)
+    }
 }

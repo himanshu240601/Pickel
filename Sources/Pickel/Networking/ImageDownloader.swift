@@ -9,14 +9,37 @@ import Foundation
 
 /// Default ``ImageDownloading`` implementation backed by `URLSession`.
 public struct ImageDownloader: ImageDownloading {
-    private let session: URLSession
+    /// Default limit for a single image: 50 MB.
+    public static let defaultMaximumDataSize = 50 * 1024 * 1024
 
-    public init(session: URLSession = ImageDownloader.makeDefaultSession()) {
+    private let session: URLSession
+    private let maximumDataSize: Int
+
+    /// - Parameters:
+    ///   - session: Session used for network requests.
+    ///   - maximumDataSize: Largest response accepted, in bytes. Larger
+    ///     responses fail with ``ImageDownloaderError/responseTooLarge``.
+    public init(
+        session: URLSession = ImageDownloader.makeDefaultSession(),
+        maximumDataSize: Int = ImageDownloader.defaultMaximumDataSize
+    ) {
         self.session = session
+        self.maximumDataSize = maximumDataSize
     }
 
     public func download(_ request: URLRequest) async throws -> Data {
-        if let url = request.url, url.isFileURL {
+        guard let url = request.url,
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https", "file"].contains(scheme)
+        else {
+            throw ImageDownloaderError.unsupportedURL
+        }
+
+        if url.isFileURL {
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+            guard size <= maximumDataSize else {
+                throw ImageDownloaderError.responseTooLarge
+            }
             return try Data(contentsOf: url)
         }
 
@@ -32,6 +55,10 @@ public struct ImageDownloader: ImageDownloading {
             throw ImageDownloaderError.unacceptableStatusCode(
                 statusCode
             )
+        }
+
+        guard data.count <= maximumDataSize else {
+            throw ImageDownloaderError.responseTooLarge
         }
 
         return data
