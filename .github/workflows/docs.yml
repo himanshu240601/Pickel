@@ -37,6 +37,8 @@ jobs:
           xcrun docc process-archive transform-for-static-hosting "$ARCHIVE" \
             --output-path site \
             --hosting-base-path Pickel
+          # Use the Pickel icon as the browser tab icon.
+          cp .github/assets/favicon.ico .github/assets/favicon.svg site/
           # Send visitors from the site root straight to the docs.
           echo '<!DOCTYPE html><meta charset="utf-8"><title>Pickel Documentation</title><meta http-equiv="refresh" content="0; url=documentation/pickel/"><a href="documentation/pickel/">Pickel documentation</a>' > site/index.html
 
