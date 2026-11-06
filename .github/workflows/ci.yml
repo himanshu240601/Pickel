@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 concurrency:
@@ -14,17 +13,24 @@ jobs:
     name: macOS (swift test)
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Swift version
         run: swift --version
       - name: Test
-        run: swift test
+        run: |
+          set -o pipefail
+          swift test 2>&1 | tee test.log || {
+            grep -E "error:|failed|Fatal|crash" test.log | head -20 | while read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          }
 
   ios:
     name: iOS Simulator
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Pick simulator
         id: sim
         run: |
@@ -37,7 +43,13 @@ jobs:
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       - name: Test
         run: |
+          set -o pipefail
           xcodebuild test \
             -scheme Pickel \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            -quiet
+            2>&1 | tee test.log | grep -E "error:|failed|passed|Executed|TEST" || {
+            grep -E "error:|failed" test.log | head -20 | while read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          }

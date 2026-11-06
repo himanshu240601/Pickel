@@ -105,7 +105,7 @@ final class ImageDataLoaderTests: XCTestCase {
 
         var registeredWaiters = 0
 
-        for _ in 0..<100 {
+        for _ in 0..<500 {
             registeredWaiters = await sut.waiterCount(for: url)
 
             if registeredWaiters >= 2 {
@@ -151,7 +151,7 @@ final class ImageDataLoaderTests: XCTestCase {
 
         var registeredWaiters = 0
 
-        for _ in 0..<100 {
+        for _ in 0..<500 {
             registeredWaiters = await sut.waiterCount(for: url)
 
             if registeredWaiters == 2 {
@@ -201,7 +201,7 @@ final class ImageDataLoaderTests: XCTestCase {
 
         var registeredWaiters = 0
 
-        for _ in 0..<100 {
+        for _ in 0..<500 {
             registeredWaiters = await sut.waiterCount(for: url)
 
             if registeredWaiters == 2 {

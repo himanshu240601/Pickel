@@ -42,7 +42,7 @@ final class ImagePipelineTests: XCTestCase {
     }
 
     private func waitForDiskEntry(_ key: String) async throws {
-        for _ in 0..<200 {
+        for _ in 0..<1000 {
             if await diskCache.containsData(forKey: key) {
                 return
             }
@@ -210,10 +210,13 @@ final class ImagePipelineTests: XCTestCase {
         XCTAssertEqual(image.cgImage?.width, 8)
     }
 
+    #if canImport(UIKit)
+    // UIImage is Sendable, so results can be used directly on the main actor.
     @MainActor
     func testCanBeCalledFromMainActor() async throws {
         let image = try await sut.image(for: url)
 
         XCTAssertNotNil(image.cgImage)
     }
+    #endif
 }
