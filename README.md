@@ -43,6 +43,22 @@ imageView.pickel.setImage(with: url)
 
 This works in table and collection view cells too: when a cell is reused, the old load is cancelled automatically.
 
+**Placeholder and failure images:**
+
+```swift
+imageView.pickel.setImage(
+    with: url,
+    placeholder: UIImage(named: "placeholder"), // shown while loading
+    failureImage: UIImage(named: "broken")      // shown if loading fails (optional)
+)
+```
+
+- The placeholder appears right away, then fades into the real image when it arrives.
+- If the image is already cached, it shows instantly and the placeholder is skipped.
+- If loading fails and you didn't pass a `failureImage`, the placeholder stays.
+- With no placeholder, the image view is cleared while loading, so a reused cell never shows the previous row's image.
+- The placeholder uses the image view's `contentMode`, so pick one that suits both, for example `.scaleAspectFill` for photos.
+
 ### async/await
 
 ```swift
