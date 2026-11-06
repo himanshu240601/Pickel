@@ -16,6 +16,10 @@ public struct ImageDownloader: ImageDownloading {
     }
 
     public func download(_ request: URLRequest) async throws -> Data {
+        if let url = request.url, url.isFileURL {
+            return try Data(contentsOf: url)
+        }
+
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {

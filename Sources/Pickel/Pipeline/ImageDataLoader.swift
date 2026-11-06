@@ -1,5 +1,5 @@
 //
-//  ImagePipeline.swift
+//  ImageDataLoader.swift
 //  Pickel
 //
 //  Created by Himanshu's MacBook on 11/10/26.
@@ -24,7 +24,10 @@ private final class WaiterCancellationState: @unchecked Sendable {
     }
 }
 
-actor ImagePipeline {
+/// Fetches image data and coalesces concurrent requests for the same key
+/// into a single download. The download is cancelled only when every caller
+/// waiting on it has been cancelled.
+actor ImageDataLoader {
     private struct InflightRequest {
         let id: UUID
         let task: Task<Void, Never>
@@ -35,7 +38,7 @@ actor ImagePipeline {
     
     private let downloader: any ImageDownloading
     
-    private var inFlightRequests: [URL: InflightRequest] = [:]
+    private var inFlightRequests: [String: InflightRequest] = [:]
 
     
     init(downloader: any ImageDownloading = ImageDownloader()) {
@@ -43,20 +46,25 @@ actor ImagePipeline {
     }
     
     func hasInFlightRequest(for url: URL) -> Bool {
-        inFlightRequests[url] != nil
+        inFlightRequests[url.absoluteString] != nil
     }
     
     func waiterCount(for url: URL) -> Int {
-        inFlightRequests[url]?.waiters.count ?? 0
+        inFlightRequests[url.absoluteString]?.waiters.count ?? 0
+    }
+
+    func data(for url: URL) async throws -> Data {
+        try await data(for: URLRequest(url: url), key: url.absoluteString)
     }
     
-    func data(for url: URL) async throws -> Data {
+    func data(for request: URLRequest, key url: String) async throws -> Data {
         let waiterID = UUID()
         let cancellationState = WaiterCancellationState()
 
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 register(
+                    request: request,
                     url: url,
                     waiterID: waiterID,
                     cancellationState: cancellationState,
@@ -76,7 +84,8 @@ actor ImagePipeline {
     }
     
     private func register(
-        url: URL,
+        request urlRequest: URLRequest,
+        url: String,
         waiterID: UUID,
         cancellationState: WaiterCancellationState,
         continuation: CheckedContinuation<Data, any Error>
@@ -104,7 +113,7 @@ actor ImagePipeline {
             
             do {
                 result = .success(
-                    try await downloader.download(from: url)
+                    try await downloader.download(urlRequest)
                 )
             } catch {
                 result = .failure(error)
@@ -131,7 +140,7 @@ actor ImagePipeline {
     
     private func cancelWaiter(
         _ waiterID: UUID,
-        for url: URL
+        for url: String
     ) {
         guard var request = inFlightRequests[url],
               let continuation = request.waiters.removeValue(
@@ -152,7 +161,7 @@ actor ImagePipeline {
     }
 
     private func finishRequest(
-        for url: URL,
+        for url: String,
         requestID: UUID,
         result: Result<Data, any Error>
     ) {
