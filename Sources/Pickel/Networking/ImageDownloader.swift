@@ -7,28 +7,40 @@
 
 import Foundation
 
-struct ImageDownloader: ImageDownloading {
+/// Default ``ImageDownloading`` implementation backed by `URLSession`.
+public struct ImageDownloader: ImageDownloading {
     private let session: URLSession
-    
-    init(session: URLSession = .shared) {
+
+    public init(session: URLSession = ImageDownloader.makeDefaultSession()) {
         self.session = session
     }
-    
-    func download(from url: URL) async throws -> Data {
-        let (data, response) = try await session.data(from: url)
-        
+
+    public func download(_ request: URLRequest) async throws -> Data {
+        let (data, response) = try await session.data(for: request)
+
         guard let httpResponse = response as? HTTPURLResponse else {
             throw ImageDownloaderError.invalidResponse
         }
-        
+
         let statusCode = httpResponse.statusCode
-        
+
         guard (200..<300).contains(statusCode) else {
             throw ImageDownloaderError.unacceptableStatusCode(
                 statusCode
             )
         }
-        
+
         return data
+    }
+
+    /// A session tuned for image loading. `URLCache` is disabled because
+    /// Pickel keeps its own disk cache.
+    public static func makeDefaultSession() -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.urlCache = nil
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.httpMaximumConnectionsPerHost = 6
+        configuration.timeoutIntervalForRequest = 60
+        return URLSession(configuration: configuration)
     }
 }
