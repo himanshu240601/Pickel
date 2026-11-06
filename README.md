@@ -91,6 +91,17 @@ imageView.pickel.setImage(
 let image = try await ImagePipeline.shared.image(for: url)
 ```
 
+## Sample app
+
+A demo app is included in [`Examples/PickelDemo`](Examples/PickelDemo). Open `Examples/PickelDemo/PickelDemo.xcodeproj` in Xcode and press Run. It shows:
+
+- **Gallery**: a SwiftUI grid with placeholder and failure views
+- **Avatars**: circular images using the `.circle` processor
+- **UIKit**: a collection view with `imageView.pickel.setImage(with:)` and prefetching
+- **More**: processors, error handling with retry, async/await, and clearing the cache
+
+The sample uses photos from [Unsplash](https://unsplash.com).
+
 ## Tips
 
 **Large images:** to save memory, pass the size the image will be shown at. Pickel shrinks the image to that size:
