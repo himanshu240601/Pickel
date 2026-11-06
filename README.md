@@ -138,9 +138,11 @@ imageView.pickel.setImage(with: url, processors: [.roundedCorners(radius: 12)])
 await ImagePipeline.shared.removeAllCachedImages()
 ```
 
-## Learn more
+## Documentation
 
-Every public type includes documentation comments. In Xcode, Option-click a type to read them. Good places to start:
+Full documentation, including installation and guides for SwiftUI and UIKit, is at **[himanshu240601.github.io/Pickel](https://himanshu240601.github.io/Pickel/)**.
+
+The same documentation is available in Xcode: Option-click any Pickel type, or open **Help → Developer Documentation**. Good places to start:
 
 - `ImageRequest`: custom headers, cache options, sizes
 - `ImagePipeline.Configuration`: cache size limits, custom networking
