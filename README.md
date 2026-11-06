@@ -33,6 +33,32 @@ PickelImage(url: url) { image in
 .frame(width: 100, height: 100)
 ```
 
+**Placeholder and failure views:**
+
+```swift
+PickelImage(url: url) { image in
+    image.resizable().scaledToFill()
+} placeholder: {
+    ProgressView()                  // shown while loading
+} failure: {
+    Image(systemName: "photo")      // shown if loading fails
+}
+```
+
+- If you leave out `failure`, the placeholder stays visible when loading fails.
+- If the image is already cached, it shows instantly and the placeholder is skipped.
+- To use the error itself, for example to show a retry button, use the phase-based version:
+
+```swift
+PickelImage(url: url) { phase in
+    switch phase {
+    case .empty:              ProgressView()
+    case .success(let image): image.resizable()
+    case .failure(let error): Text(error.localizedDescription)
+    }
+}
+```
+
 ### UIKit
 
 ```swift

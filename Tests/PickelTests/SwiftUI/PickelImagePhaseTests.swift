@@ -42,6 +42,13 @@ final class PickelImagePhaseTests: XCTestCase {
         } placeholder: {
             ProgressView()
         }
+        _ = PickelImage(url: url) { image in
+            image.resizable()
+        } placeholder: {
+            ProgressView()
+        } failure: {
+            Image(systemName: "photo")
+        }
         _ = PickelImage(request: nil) { phase in
             switch phase {
             case .empty: Color.clear

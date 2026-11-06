@@ -123,7 +123,7 @@ public struct PickelImage<Content: View>: View {
         let newPhase: PickelImagePhase
         do {
             newPhase = .success(
-                try await Self.loadImage(request, pipeline: pipeline)
+                try await loadSwiftUIImage(request, pipeline: pipeline)
             )
         } catch is CancellationError {
             return
@@ -138,16 +138,6 @@ public struct PickelImage<Content: View>: View {
         withTransaction(transaction) {
             loaded = LoadedPhase(key: key, phase: newPhase)
         }
-    }
-
-    /// Loads and wraps the image off the main actor. `NSImage` is not
-    /// `Sendable` on every SDK, so only the `Sendable` SwiftUI `Image` is
-    /// handed back to the view.
-    private nonisolated static func loadImage(
-        _ request: ImageRequest,
-        pipeline: ImagePipeline
-    ) async throws -> Image {
-        Image(platformImage: try await pipeline.image(for: request))
     }
 }
 
@@ -195,6 +185,45 @@ extension PickelImage {
         }
     }
 
+    /// Loads the image at `url`, showing `placeholder` while loading and
+    /// `failure` if loading fails.
+    ///
+    /// ```swift
+    /// PickelImage(url: url) { image in
+    ///     image.resizable()
+    /// } placeholder: {
+    ///     ProgressView()
+    /// } failure: {
+    ///     Image(systemName: "photo")
+    /// }
+    /// ```
+    public init<I: View, P: View, F: View>(
+        url: URL?,
+        targetSize: CGSize? = nil,
+        contentMode: ImageContentMode = .aspectFill,
+        processors: [any ImageProcessing] = [],
+        transaction: Transaction = Transaction(),
+        @ViewBuilder content: @escaping (Image) -> I,
+        @ViewBuilder placeholder: @escaping () -> P,
+        @ViewBuilder failure: @escaping () -> F
+    ) where Content == _ConditionalContent<_ConditionalContent<I, F>, P> {
+        self.init(
+            url: url,
+            targetSize: targetSize,
+            contentMode: contentMode,
+            processors: processors,
+            transaction: transaction
+        ) { phase in
+            if let image = phase.image {
+                content(image)
+            } else if phase.error != nil {
+                failure()
+            } else {
+                placeholder()
+            }
+        }
+    }
+
     /// Loads the image at `url` and displays it as-is, with a grey
     /// placeholder while loading.
     public init(
@@ -212,4 +241,14 @@ extension PickelImage {
             placeholder: { Color.gray.opacity(0.2) }
         )
     }
+}
+
+/// Loads and wraps the image off the main actor. `NSImage` is not
+/// `Sendable` on every SDK, so only the `Sendable` SwiftUI `Image` is handed
+/// back to the view.
+private func loadSwiftUIImage(
+    _ request: ImageRequest,
+    pipeline: ImagePipeline
+) async throws -> Image {
+    Image(platformImage: try await pipeline.image(for: request))
 }
