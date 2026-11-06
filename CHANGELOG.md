@@ -1,5 +1,14 @@
 # Changelog
 
+All notable changes to this project are documented here. Pickel follows [Semantic Versioning](https://semver.org): breaking API changes only happen in a new major version.
+
+## 1.0.0
+
+First stable release. The public API is now stable.
+
+- Everything from 0.1.0 and 0.2.0, with no API changes
+- Tested on macOS and the iOS Simulator, and builds for iPhone hardware
+
 ## 0.2.0
 
 - SwiftUI: `PickelImage(url:content:placeholder:failure:)` shows a separate view when loading fails
