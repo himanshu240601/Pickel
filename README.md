@@ -16,6 +16,12 @@ In Xcode, go to **File → Add Package Dependencies…** and paste:
 https://github.com/himanshu240601/Pickel.git
 ```
 
+Or in `Package.swift`:
+
+```swift
+.package(url: "https://github.com/himanshu240601/Pickel.git", from: "1.0.0")
+```
+
 Requires iOS 17+ and Xcode 16+. macOS 14+, tvOS 17+ and visionOS 1+ are also supported.
 
 ## Usage
