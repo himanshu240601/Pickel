@@ -2,176 +2,182 @@
 //  ImagePipeline.swift
 //  Pickel
 //
-//  Created by Himanshu's MacBook on 11/10/26.
-//
 
+import CoreGraphics
 import Foundation
 
-private final class WaiterCancellationState: @unchecked Sendable {
-    private let lock = NSLock()
-    private var cancelled = false
+/// Loads images: memory cache → disk cache → network, then decodes,
+/// downsamples and processes them off the main thread.
+///
+/// Concurrent requests for the same URL share a single download, and the
+/// download is cancelled only when every caller waiting on it is cancelled.
+///
+/// ```swift
+/// let image = try await ImagePipeline.shared.image(for: url)
+/// ```
+public final class ImagePipeline: Sendable {
+    /// Pipeline dependencies.
+    public struct Configuration: Sendable {
+        /// Fetches data from the network.
+        public var downloader: any ImageDownloading
+        /// Cache for decoded images. `nil` disables memory caching.
+        public var memoryCache: MemoryCache?
+        /// Cache for original image data. `nil` disables disk caching.
+        public var diskCache: DiskCache?
 
-    func cancel() {
-        lock.lock()
-        cancelled = true
-        lock.unlock()
-    }
-
-    var isCancelled: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelled
-    }
-}
-
-actor ImagePipeline {
-    private struct InflightRequest {
-        let id: UUID
-        let task: Task<Void, Never>
-        var waiters: [
-            UUID: CheckedContinuation<Data, any Error>
-        ]
-    }
-    
-    private let downloader: any ImageDownloading
-    
-    private var inFlightRequests: [URL: InflightRequest] = [:]
-
-    
-    init(downloader: any ImageDownloading = ImageDownloader()) {
-        self.downloader = downloader
-    }
-    
-    func hasInFlightRequest(for url: URL) -> Bool {
-        inFlightRequests[url] != nil
-    }
-    
-    func waiterCount(for url: URL) -> Int {
-        inFlightRequests[url]?.waiters.count ?? 0
-    }
-    
-    func data(for url: URL) async throws -> Data {
-        let waiterID = UUID()
-        let cancellationState = WaiterCancellationState()
-
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                register(
-                    url: url,
-                    waiterID: waiterID,
-                    cancellationState: cancellationState,
-                    continuation: continuation
-                )
-            }
-        } onCancel: {
-            cancellationState.cancel()
-
-            Task {
-                await self.cancelWaiter(
-                    waiterID,
-                    for: url
-                )
-            }
+        public init(
+            downloader: any ImageDownloading = ImageDownloader(),
+            memoryCache: MemoryCache? = MemoryCache(),
+            diskCache: DiskCache? = DiskCache()
+        ) {
+            self.downloader = downloader
+            self.memoryCache = memoryCache
+            self.diskCache = diskCache
         }
     }
-    
-    private func register(
-        url: URL,
-        waiterID: UUID,
-        cancellationState: WaiterCancellationState,
-        continuation: CheckedContinuation<Data, any Error>
-    ) {
-        guard !cancellationState.isCancelled else {
-            continuation.resume(throwing: CancellationError())
-            return
-        }
-        
-        if var request = inFlightRequests[url] {
-            request.waiters[waiterID] = continuation
-            inFlightRequests[url] = request
 
-            if cancellationState.isCancelled {
-                cancelWaiter(waiterID, for: url)
+    /// The default pipeline used by Pickel's SwiftUI and UIKit APIs.
+    public static let shared = ImagePipeline()
+
+    public let configuration: Configuration
+
+    private let dataLoader: ImageDataLoader
+    private let decoder = ImageDecoder()
+
+    public init(configuration: Configuration = Configuration()) {
+        self.configuration = configuration
+        self.dataLoader = ImageDataLoader(downloader: configuration.downloader)
+    }
+
+    // MARK: - Loading
+
+    /// Loads the image at `url`.
+    public func image(for url: URL) async throws -> PlatformImage {
+        try await image(for: ImageRequest(url: url))
+    }
+
+    /// Loads the image described by `request`.
+    ///
+    /// - Throws: `CancellationError` if the task is cancelled,
+    ///   ``ImagePipelineError``, ``ImageDownloaderError``, `URLError`,
+    ///   ``ImageDecodingError`` or ``ImageProcessingError``.
+    public func image(for request: ImageRequest) async throws -> PlatformImage {
+        let options = request.options
+
+        if !options.contains(.disableMemoryCacheReads),
+           let cached = cachedImage(for: request) {
+            return cached
+        }
+
+        guard let url = request.url else {
+            throw ImagePipelineError.missingURL
+        }
+
+        let dataKey = request.dataCacheKey
+        let diskCache = url.isFileURL ? nil : configuration.diskCache
+
+        var data: Data?
+        if let diskCache, !options.contains(.disableDiskCacheReads) {
+            data = await diskCache.data(forKey: dataKey)
+        }
+
+        let isFromNetwork = data == nil
+
+        if isFromNetwork {
+            if options.contains(.returnCacheDataDontLoad) {
+                throw ImagePipelineError.cacheMiss
             }
 
-            return
-        }
-        
-        let requestID = UUID()
-        
-        let task = Task {
-            let result: Result<Data, any Error>
-            
-            do {
-                result = .success(
-                    try await downloader.download(from: url)
-                )
-            } catch {
-                result = .failure(error)
-            }
-            
-            finishRequest(
-                for: url,
-                requestID: requestID,
-                result: result
+            data = try await dataLoader.data(
+                for: request.urlRequest,
+                key: dataKey
             )
         }
-        
-        inFlightRequests[url] = InflightRequest(
-            id: requestID,
-            task: task,
-            waiters: [waiterID: continuation]
-        )
 
-        if cancellationState.isCancelled {
-            cancelWaiter(waiterID, for: url)
-        }
-    }
-    
-    
-    private func cancelWaiter(
-        _ waiterID: UUID,
-        for url: URL
-    ) {
-        guard var request = inFlightRequests[url],
-              let continuation = request.waiters.removeValue(
-                  forKey: waiterID
-              )
-        else {
-            return
+        try Task.checkCancellation()
+
+        let image: PlatformImage
+        do {
+            image = try makeImage(from: data ?? Data(), request: request)
+        } catch let error as ImageDecodingError {
+            // Don't keep undecodable data around.
+            if !isFromNetwork, let diskCache {
+                await diskCache.removeData(forKey: dataKey)
+            }
+            throw error
         }
 
-        continuation.resume(throwing: CancellationError())
-
-        if request.waiters.isEmpty {
-            inFlightRequests[url] = nil
-            request.task.cancel()
-        } else {
-            inFlightRequests[url] = request
-        }
-    }
-
-    private func finishRequest(
-        for url: URL,
-        requestID: UUID,
-        result: Result<Data, any Error>
-    ) {
-        guard let request = inFlightRequests[url],
-              request.id == requestID
-        else {
-            return
-        }
-
-        inFlightRequests[url] = nil
-
-        for continuation in request.waiters.values {
-            switch result {
-            case .success(let data):
-                continuation.resume(returning: data)
-
-            case .failure(let error):
-                continuation.resume(throwing: error)
+        if isFromNetwork,
+           let diskCache,
+           let data,
+           !options.contains(.disableDiskCacheWrites) {
+            Task.detached(priority: .utility) {
+                await diskCache.store(data, forKey: dataKey)
             }
         }
+
+        if !options.contains(.disableMemoryCacheWrites) {
+            configuration.memoryCache?.setImage(
+                image,
+                forKey: request.imageCacheKey
+            )
+        }
+
+        return image
+    }
+
+    /// Decodes and processes `data` according to `request`.
+    func makeImage(
+        from data: Data,
+        request: ImageRequest
+    ) throws -> PlatformImage {
+        var cgImage = try decoder.decode(
+            data,
+            targetSize: request.targetSize,
+            scale: request.scale,
+            contentMode: request.contentMode
+        )
+
+        for processor in request.processors {
+            try Task.checkCancellation()
+
+            guard let processed = processor.process(
+                cgImage,
+                scale: request.scale
+            ) else {
+                throw ImageProcessingError.processingFailed(
+                    identifier: processor.identifier
+                )
+            }
+
+            cgImage = processed
+        }
+
+        return PlatformImage.make(cgImage: cgImage, scale: request.scale)
+    }
+
+    // MARK: - Cache access
+
+    /// Returns the image for `request` from the memory cache, synchronously.
+    public func cachedImage(for request: ImageRequest) -> PlatformImage? {
+        configuration.memoryCache?.image(forKey: request.imageCacheKey)
+    }
+
+    /// Returns the image for `url` from the memory cache, synchronously.
+    public func cachedImage(for url: URL) -> PlatformImage? {
+        cachedImage(for: ImageRequest(url: url))
+    }
+
+    /// Removes the cached image for `request` from memory, and its original
+    /// data from disk.
+    public func removeCachedImage(for request: ImageRequest) async {
+        configuration.memoryCache?.removeImage(forKey: request.imageCacheKey)
+        await configuration.diskCache?.removeData(forKey: request.dataCacheKey)
+    }
+
+    /// Removes every image from the memory and disk caches.
+    public func removeAllCachedImages() async {
+        configuration.memoryCache?.removeAll()
+        await configuration.diskCache?.removeAll()
     }
 }

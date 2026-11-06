@@ -1,5 +1,5 @@
 //
-//  ImagePipelineTests.swift
+//  ImageDataLoaderTests.swift
 //  Pickel
 //
 //  Created by Himanshu's MacBook on 11/10/26.
@@ -86,10 +86,10 @@ private actor DownloadSpy: ImageDownloading {
     }
 }
 
-final class ImagePipelineTests: XCTestCase {
+final class ImageDataLoaderTests: XCTestCase {
     func testConcurrentRequestsForSameURLShareDownload() async throws {
         let downloader = DownloadSpy()
-        let sut = ImagePipeline(downloader: downloader)
+        let sut = ImageDataLoader(downloader: downloader)
         let url = URL(string: "https://example.com/image.png")!
         let expectedData = Data("image-data".utf8)
 
@@ -135,7 +135,7 @@ final class ImagePipelineTests: XCTestCase {
     
     func testCancellingOneCallerDoesNotCancelOtherCallers() async throws {
         let downloader = DownloadSpy()
-        let sut = ImagePipeline(downloader: downloader)
+        let sut = ImageDataLoader(downloader: downloader)
         let url = URL(string: "https://example.com/shared.png")!
         let expectedData = Data("image-data".utf8)
 
@@ -186,7 +186,7 @@ final class ImagePipelineTests: XCTestCase {
     
     func testCancellingAllCallersCancelsUnderlyingRequest() async throws {
         let downloader = DownloadSpy()
-        let sut = ImagePipeline(downloader: downloader)
+        let sut = ImageDataLoader(downloader: downloader)
         let url = URL(string: "https://example.com/cancel.png")!
 
         let first = Task {

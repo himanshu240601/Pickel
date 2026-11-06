@@ -55,8 +55,8 @@ public final class MemoryCache: @unchecked Sendable {
             ),
             object: nil,
             queue: nil
-        ) { [cache] _ in
-            cache.removeAllObjects()
+        ) { [weak self] _ in
+            self?.removeAll()
         }
         #endif
     }
