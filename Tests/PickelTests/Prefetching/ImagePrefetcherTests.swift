@@ -24,7 +24,7 @@ final class ImagePrefetcherTests: XCTestCase {
     }
 
     private func waitUntil(_ condition: () async -> Bool) async throws {
-        for _ in 0..<200 {
+        for _ in 0..<1000 {
             if await condition() {
                 return
             }

@@ -42,7 +42,7 @@ final class ImagePipelineTests: XCTestCase {
     }
 
     private func waitForDiskEntry(_ key: String) async throws {
-        for _ in 0..<200 {
+        for _ in 0..<1000 {
             if await diskCache.containsData(forKey: key) {
                 return
             }

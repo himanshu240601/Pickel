@@ -43,7 +43,13 @@ jobs:
           echo "udid=$UDID" >> "$GITHUB_OUTPUT"
       - name: Test
         run: |
+          set -o pipefail
           xcodebuild test \
             -scheme Pickel \
             -destination "id=${{ steps.sim.outputs.udid }}" \
-            -quiet
+            2>&1 | tee test.log | grep -E "error:|failed|passed|Executed|TEST" || {
+            grep -E "error:|failed" test.log | head -20 | while read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          }
