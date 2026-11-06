@@ -1,6 +1,11 @@
-# Pickel
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/pickel-logo-dark.png">
+    <img src=".github/assets/pickel-logo.png" alt="Pickel" width="360">
+  </picture>
+</p>
 
-**Images, without the pickle.**
+<p align="center"><strong>Images, without the pickle.</strong></p>
 
 Pickel loads images from the internet and shows them in your iOS app. Images are cached, so each one downloads only once.
 
@@ -145,4 +150,8 @@ Every public type includes documentation comments. In Xcode, Option-click a type
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+The code is available under the MIT License. See [LICENSE](LICENSE).
+
+## Trademark
+
+"Pickel" and the Pickel logo are trademarks of Himanshu Goyal. The MIT License covers the source code only. It does not grant rights to the name or logo. You're welcome to use them to refer to this project, but not to promote other products or to suggest endorsement or affiliation without permission.
