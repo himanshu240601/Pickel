@@ -139,7 +139,7 @@ extension ImageRequest: ExpressibleByStringLiteral {
     public init(stringLiteral value: String) {
         self.init(
             urlRequest: URLRequest(
-                url: URL(string: value) ?? URL(fileURLWithPath: "/dev/null")
+                url: URL(string: value) ?? URL(string: "about:blank")!
             )
         )
     }

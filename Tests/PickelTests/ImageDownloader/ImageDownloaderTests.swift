@@ -98,13 +98,40 @@ final class StubURLProtocol: URLProtocol {
 
 final class ImageDownloaderTests: XCTestCase {
     
-    private func makeSUT() -> ImageDownloader {
+    private func makeSUT(
+        maximumDataSize: Int = ImageDownloader.defaultMaximumDataSize
+    ) -> ImageDownloader {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [StubURLProtocol.self]
         
         let session = URLSession(configuration: configuration)
         
-        return ImageDownloader(session: session)
+        return ImageDownloader(session: session, maximumDataSize: maximumDataSize)
+    }
+
+    func testRejectsResponsesLargerThanLimit() async {
+        let sut = makeSUT(maximumDataSize: 4)
+        let url = URL(string: "https://example.com/success")!
+
+        do {
+            _ = try await sut.download(from: url)
+            XCTFail("Expected a size error")
+        } catch {
+            XCTAssertEqual(error as? ImageDownloaderError, .responseTooLarge)
+        }
+    }
+
+    func testRejectsUnsupportedSchemes() async {
+        let sut = makeSUT()
+
+        for string in ["ftp://example.com/a.png", "data:image/png;base64,AAAA", "javascript:alert(1)"] {
+            do {
+                _ = try await sut.download(from: URL(string: string)!)
+                XCTFail("Expected \(string) to be rejected")
+            } catch {
+                XCTAssertEqual(error as? ImageDownloaderError, .unsupportedURL)
+            }
+        }
     }
     
     func testDownloadReturnsDataForSuccessfulResponse() async throws {
