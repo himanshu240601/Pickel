@@ -33,7 +33,7 @@ private actor DownloadSpy: ImageDownloading {
         wasCancelled
     }
     
-    func download(from url: URL) async throws -> Data {
+    func download(_ request: URLRequest) async throws -> Data {
         callCount += 1
         resumeCallCountWaiters()
 
