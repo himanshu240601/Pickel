@@ -122,8 +122,9 @@ public struct PickelImage<Content: View>: View {
 
         let newPhase: PickelImagePhase
         do {
-            let image = try await pipeline.image(for: request)
-            newPhase = .success(Image(platformImage: image))
+            newPhase = .success(
+                try await Self.loadImage(request, pipeline: pipeline)
+            )
         } catch is CancellationError {
             return
         } catch {
@@ -137,6 +138,16 @@ public struct PickelImage<Content: View>: View {
         withTransaction(transaction) {
             loaded = LoadedPhase(key: key, phase: newPhase)
         }
+    }
+
+    /// Loads and wraps the image off the main actor. `NSImage` is not
+    /// `Sendable` on every SDK, so only the `Sendable` SwiftUI `Image` is
+    /// handed back to the view.
+    private nonisolated static func loadImage(
+        _ request: ImageRequest,
+        pipeline: ImagePipeline
+    ) async throws -> Image {
+        Image(platformImage: try await pipeline.image(for: request))
     }
 }
 

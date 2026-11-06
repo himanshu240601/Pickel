@@ -210,10 +210,13 @@ final class ImagePipelineTests: XCTestCase {
         XCTAssertEqual(image.cgImage?.width, 8)
     }
 
+    #if canImport(UIKit)
+    // UIImage is Sendable, so results can be used directly on the main actor.
     @MainActor
     func testCanBeCalledFromMainActor() async throws {
         let image = try await sut.image(for: url)
 
         XCTAssertNotNil(image.cgImage)
     }
+    #endif
 }
