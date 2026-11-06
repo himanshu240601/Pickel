@@ -11,3 +11,4 @@ First public release.
 - `ImagePrefetcher`
 - SwiftUI `PickelImage` view and `imagePipeline` environment value
 - UIKit `UIImageView.pickel.setImage(with:)`
+- Security: only `http`/`https`/`file` URLs are loaded, responses over 50 MB are rejected, and images are capped at 24 megapixels when decoded
