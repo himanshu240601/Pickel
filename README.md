@@ -4,11 +4,12 @@
 
 <p align="center"><strong>Images, without the pickle.</strong></p>
 
-Pickel loads images from the internet and shows them in your iOS app. Images are cached, so each one downloads only once.
+Pickel is a lightweight, pure-Swift library for downloading, caching and displaying images from the web in SwiftUI and UIKit. It's built on async/await and has no dependencies.
 
-- Works with **SwiftUI** and **UIKit**
-- Caches images in memory and on disk
-- Lightweight, with no dependencies
+- **SwiftUI and UIKit**: one line to show a remote image, with placeholder and failure views
+- **Memory and disk caching**: each image downloads only once
+- **Memory-friendly**: large images are downsampled to the size you display them at
+- **Modern Swift**: built on async/await and ready for Swift 6
 
 ## Installation
 
