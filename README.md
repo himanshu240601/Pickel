@@ -4,6 +4,13 @@
 
 <p align="center"><strong>Images, without the pickle.</strong></p>
 
+<p align="center">
+  <a href="https://swiftpackageindex.com/himanshu240601/Pickel"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fhimanshu240601%2FPickel%2Fbadge%3Ftype%3Dswift-versions" alt="Swift versions"></a>
+  <a href="https://swiftpackageindex.com/himanshu240601/Pickel"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fhimanshu240601%2FPickel%2Fbadge%3Ftype%3Dplatforms" alt="Platforms"></a>
+  <a href="https://github.com/himanshu240601/Pickel/actions/workflows/ci.yml"><img src="https://github.com/himanshu240601/Pickel/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License"></a>
+</p>
+
 Pickel is a lightweight, pure-Swift library for downloading, caching and displaying images from the web in SwiftUI and UIKit. It's built on async/await and has no dependencies.
 
 - **SwiftUI and UIKit**: one line to show a remote image, with placeholder and failure views
